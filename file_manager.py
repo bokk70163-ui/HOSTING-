@@ -6,7 +6,7 @@ def create_project_folder(folder_name):
     path = os.path.join(BASE_DIR, folder_name)
     if not os.path.exists(path):
         os.makedirs(path)
-        # ২টা মাস্ট ফাইল তৈরি করা
+        # Create mandatory files
         with open(os.path.join(path, "requirements.txt"), "w") as f:
             f.write("")
         with open(os.path.join(path, ".env"), "w") as f:
@@ -132,3 +132,4 @@ def get_all_folders(base_path=""):
             folders.extend(get_all_folders(rel_path))
     
     return folders
+    
