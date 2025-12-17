@@ -9,6 +9,62 @@ import os
 
 FOLDER_NAME, FILE_NAME, FILE_CONTENT, ENV_KEY, ENV_VALUE, EDIT_CONTENT, NEW_FILENAME, UPLOAD_FILE = range(8)
 
+# ... (বাকি উপরের সব কোড আগের মতোই থাকবে, শুধু run_command_handler পরিবর্তন হবে) ...
+
+# --- RUN Command (/run folder file) ---
+async def run_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text("Usage: /run <folder_name> <file_name>")
+        return
+
+    folder_name = args[0]
+    file_name = args[1]
+    chat_id = update.effective_chat.id
+    bot = context.bot
+    loop = asyncio.get_running_loop()
+    
+    await update.message.reply_text(f"[Info] Initializing {file_name}...\nYou will receive a log file after completion.")
+
+    # ছোট স্ট্যাটাস মেসেজ পাঠানোর ফাংশন
+    def status_callback(text):
+        try:
+            asyncio.run_coroutine_threadsafe(
+                bot.send_message(chat_id=chat_id, text=f"```{text}```", parse_mode="Markdown"),
+                loop
+            )
+        except Exception:
+            pass
+
+    # কাজ শেষ হলে ফাইল পাঠানোর ফাংশন
+    def completion_callback(file_path, success):
+        async def send_file():
+            try:
+                if os.path.exists(file_path):
+                    caption = "✅ Process Finished Successfully" if success else "❌ Process Failed/Stopped"
+                    await bot.send_document(
+                        chat_id=chat_id, 
+                        document=file_path, 
+                        caption=caption,
+                        filename=os.path.basename(file_path)
+                    )
+                    # পাঠানোর পর সার্ভার ক্লিন রাখতে ফাইল ডিলেট করতে পারেন (ঐচ্ছিক)
+                    # os.remove(file_path) 
+                else:
+                    await bot.send_message(chat_id=chat_id, text="[Error] Log file generation failed.")
+            except Exception as e:
+                await bot.send_message(chat_id=chat_id, text=f"[Error] Sending log file failed: {e}")
+
+        asyncio.run_coroutine_threadsafe(send_file(), loop)
+
+    # নতুন থ্রেডে স্ক্রিপ্ট রান করা
+    threading.Thread(
+        target=run_script, 
+        args=(folder_name, file_name, status_callback, completion_callback)
+    ).start()
+
+# ... (বাকি নিচের সব কোড যেমন running_list_handler আগের মতোই থাকবে) ...
+
 # --- Create Folder (/cf) ---
 async def start_cf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Enter Folder Name:")
@@ -247,33 +303,6 @@ async def env_value_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("[Success] Environment variable added.")
     return ConversationHandler.END
 
-# --- RUN Command (/run folder file) ---
-async def run_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-    if len(args) < 2:
-        await update.message.reply_text("Usage: /run <folder_name> <file_name>")
-        return
-
-    folder_name = args[0]
-    file_name = args[1]
-    chat_id = update.effective_chat.id
-    bot = context.bot
-    loop = asyncio.get_running_loop()
-    
-    await update.message.reply_text(f"[Info] Initiating {file_name}...")
-
-    def send_log_message(text):
-        try:
-            future = asyncio.run_coroutine_threadsafe(
-                bot.send_message(chat_id=chat_id, text=f"```\n{text}\n```", parse_mode="Markdown"),
-                loop
-            )
-            future.result(timeout=10)
-        except Exception:
-            pass
-
-    threading.Thread(target=run_script, args=(folder_name, file_name, send_log_message)).start()
-
 # --- Running Processes (/running) ---
 async def running_list_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     processes = get_running_list()
@@ -325,4 +354,4 @@ async def process_control_handler(update: Update, context: ContextTypes.DEFAULT_
             
     elif data[0] == "proc_back":
         await running_list_handler(update, context)
-                        
+                              
