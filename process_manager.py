@@ -3,12 +3,13 @@ import threading
 import os
 import signal
 import time
+import sys  # Added sys to ensure correct python interpreter
 from config import BASE_DIR
 
-# রানিং প্রসেস স্টোর করার ডিকশনারি
+# Dictionary to store running processes
 running_processes = {}
 
-# লগ ফোল্ডার তৈরি
+# Create logs directory
 LOG_DIR = "logs"
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
@@ -17,7 +18,7 @@ def run_script(folder_name, file_name, status_callback, completion_callback):
     process_id = f"{folder_name}/{file_name}"
     folder_path = os.path.join(BASE_DIR, folder_name)
     
-    # লগ ফাইলের নাম জেনারেট করা (যেমন: logs/folder_file_timestamp.txt)
+    # Generate log file name
     timestamp = int(time.time())
     safe_name = f"{folder_name}_{file_name}".replace("/", "_").replace(".", "_")
     log_file_path = os.path.join(LOG_DIR, f"{safe_name}_{timestamp}.txt")
@@ -27,21 +28,23 @@ def run_script(folder_name, file_name, status_callback, completion_callback):
     try:
         with open(log_file_path, "w", encoding="utf-8") as log_file:
             # 1. Requirements Installation Log
-            req_path = os.path.join(BASE_DIR, folder_path, "requirements.txt")
+            # FIX: Previously I had a path error here (double BASE_DIR)
+            req_path = os.path.join(folder_path, "requirements.txt")
+            
             if os.path.exists(req_path) and os.path.getsize(req_path) > 0:
                 log_file.write("--- INSTALLING REQUIREMENTS ---\n")
-                log_file.flush() # বাফারিং এড়াতে সাথে সাথে রাইট করা
+                log_file.flush()
                 
-                # pip install আউটপুট সরাসরি ফাইলে রিডাইরেক্ট করা
+                # FIX: Using sys.executable ensures we use the same python environment
                 subprocess.run(
-                    ["pip", "install", "-r", req_path], 
+                    [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], 
                     stdout=log_file, 
                     stderr=log_file,
-                    cwd=folder_path
+                    cwd=folder_path # Running inside the folder, so just requirements.txt is enough
                 )
                 log_file.write("\n--- REQUIREMENTS INSTALLED ---\n\n")
             else:
-                log_file.write("--- NO REQUIREMENTS FOUND ---\n\n")
+                log_file.write(f"--- NO REQUIREMENTS FOUND AT: {req_path} ---\n\n")
             
             log_file.flush()
 
@@ -50,9 +53,9 @@ def run_script(folder_name, file_name, status_callback, completion_callback):
             log_file.flush()
 
             process = subprocess.Popen(
-                ["python", "-u", file_name], 
-                stdout=log_file,  # stdout সরাসরি ফাইলে
-                stderr=log_file,  # stderr সরাসরি ফাইলে
+                [sys.executable, "-u", file_name], # Using sys.executable here too
+                stdout=log_file,
+                stderr=log_file,
                 text=True,
                 cwd=folder_path,
                 preexec_fn=os.setsid
@@ -60,19 +63,16 @@ def run_script(folder_name, file_name, status_callback, completion_callback):
             
             running_processes[process_id] = process
             
-            # প্রসেস শেষ হওয়া পর্যন্ত অপেক্ষা
             process.wait()
             
             log_file.write(f"\n--- PROCESS FINISHED (Code: {process.returncode}) ---")
 
-        # প্রসেস শেষ হলে লগ ফাইল পাঠানো
         if process_id in running_processes:
             del running_processes[process_id]
         
         completion_callback(log_file_path, True)
 
     except Exception as e:
-        # এরর হলে সেটাও লগে লিখে পাঠানো
         with open(log_file_path, "a", encoding="utf-8") as log_file:
             log_file.write(f"\n\n--- CRITICAL ERROR ---\n{str(e)}")
         
