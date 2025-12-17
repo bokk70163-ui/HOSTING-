@@ -1,7 +1,7 @@
 import os
 
 # তোমার টেলিগ্রাম বট টোকেন এখানে দাও
-BOT_TOKEN = "8580425478:AAFMRvif3r2u6YtHRJYyUxxAAVGJhVaSQYk"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
 
 # যেখানে সব প্রজেক্ট সেভ হবে
 BASE_DIR = "projects"
